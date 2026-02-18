@@ -38,7 +38,7 @@ state = {
     "power_on_time": None,
 }
 
-bot = Bot(token=BOT_TOKEN)
+bot = None
 
 # ====== ДОПОМІЖНІ ФУНКЦІЇ ======
 def get_status_text():
@@ -163,6 +163,7 @@ tg_app = None
 
 async def run_bot():
     global tg_app
+    bot = Bot(token=BOT_TOKEN)
     tg_app = Application.builder().token(BOT_TOKEN).build()
     tg_app.add_handler(CommandHandler("start", cmd_start))
     tg_app.add_handler(CommandHandler("stop", cmd_stop))
