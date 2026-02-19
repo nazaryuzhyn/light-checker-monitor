@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -13,6 +13,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # https://your-app.up.railway.app
 PING_TIMEOUT = 20  # 20 секунд без пінгу = світло зникло
 USERS_FILE = "users.json"
 
@@ -39,6 +40,7 @@ state = {
 }
 
 bot = None
+tg_app = None
 
 # ====== ДОПОМІЖНІ ФУНКЦІЇ ======
 def get_status_text():
@@ -157,9 +159,8 @@ async def monitor_power():
             dur_text = f"{hours} год {minutes} хв" if hours > 0 else f"{minutes} хв"
             await notify_all(f"💡 *Світло з'явилось!*\nНе було: {dur_text}")
 
-tg_app = None
-
-async def run_bot():
+# ====== ІНІЦІАЛІЗАЦІЯ БОТА ======
+async def setup_bot():
     global tg_app, bot
     tg_app = Application.builder().token(BOT_TOKEN).build()
     bot = tg_app.bot
@@ -167,21 +168,26 @@ async def run_bot():
     tg_app.add_handler(CommandHandler("stop", cmd_stop))
     tg_app.add_handler(CallbackQueryHandler(button_handler))
     await tg_app.initialize()
-    await tg_app.bot.delete_webhook(drop_pending_updates=True)
     await tg_app.start()
-    await tg_app.updater.start_polling()
+    await bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await setup_bot()
     asyncio.create_task(monitor_power())
-    asyncio.create_task(run_bot())
     yield
     if tg_app:
-        await tg_app.updater.stop()
         await tg_app.stop()
         await tg_app.shutdown()
 
 app = FastAPI(lifespan=lifespan)
+
+@app.post("/webhook")
+async def webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, tg_app.bot)
+    await tg_app.process_update(update)
+    return {"ok": True}
 
 @app.get("/ping")
 async def ping():
