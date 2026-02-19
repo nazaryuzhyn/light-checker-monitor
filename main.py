@@ -13,7 +13,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-PING_TIMEOUT = 300  # 5 хвилин без пінгу = світло зникло
+PING_TIMEOUT = 20  # 20 секунд без пінгу = світло зникло
 USERS_FILE = "users.json"
 
 # ====== ЗБЕРЕЖЕННЯ КОРИСТУВАЧІВ ======
@@ -47,7 +47,7 @@ def get_status_text():
         elapsed = int((time.time() - state["last_ping"]) / 60)
         return (
             f"✅ *Світло є*\n"
-            f"Останній сигнал від ESP: {last}\n"
+            f"Останній сигнал: {last}\n"
             f"({elapsed} хв тому)"
         )
     else:
@@ -95,7 +95,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     greeting = "👋 Вітаю! Ти підписаний на сповіщення про світло." if is_new else "👋 Ти вже підписаний!"
 
     await update.message.reply_text(
-        f"{greeting}\n\n🏠 *Моніторинг світла вдома*\nОберіть дію:",
+        f"{greeting}\n\n🏠 *Моніторинг світла вдома*",
         reply_markup=get_keyboard(),
         parse_mode="Markdown"
     )
@@ -124,13 +124,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 *Детальна інформація*\n\n"
             f"Стан: {status}\n"
             f"Останній пінг: {last}\n"
-            f"Таймаут: {PING_TIMEOUT // 60} хв\n"
-            f"Підписників: {len(subscribed_users)}"
         )
         if not state["power_is_on"] and state["power_off_time"]:
             off = datetime.fromtimestamp(state["power_off_time"]).strftime("%d.%m %H:%M")
             duration = int((time.time() - state["power_off_time"]) / 60)
-            text += f"\nВідключено о: {off}\nТривалість: {duration} хв"
+            text += f"\nВідключено: {off}\nТривалість: {duration} хв"
 
         await query.edit_message_text(
             text=text,
@@ -142,13 +140,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def monitor_power():
     await asyncio.sleep(15)
     while True:
-        await asyncio.sleep(30)
+        await asyncio.sleep(5)
         elapsed = time.time() - state["last_ping"]
 
         if elapsed > PING_TIMEOUT and state["power_is_on"]:
             state["power_is_on"] = False
             state["power_off_time"] = time.time()
-            await notify_all("🔴 *Світло зникло!*\nESP перестав виходити на зв'язок.")
+            await notify_all("🔴 *Світло зникло!*\nESP перестав виходити на зв'язок. ☹️")
 
         elif elapsed <= PING_TIMEOUT and not state["power_is_on"]:
             state["power_is_on"] = True
@@ -162,9 +160,9 @@ async def monitor_power():
 tg_app = None
 
 async def run_bot():
-    global tg_app
-    bot = Bot(token=BOT_TOKEN)
+    global tg_app, bot
     tg_app = Application.builder().token(BOT_TOKEN).build()
+    bot = tg_app.bot
     tg_app.add_handler(CommandHandler("start", cmd_start))
     tg_app.add_handler(CommandHandler("stop", cmd_stop))
     tg_app.add_handler(CallbackQueryHandler(button_handler))
