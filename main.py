@@ -14,7 +14,7 @@ load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # https://your-app.up.railway.app
-PING_TIMEOUT = 20  # 20 секунд без пінгу = світло зникло
+PING_TIMEOUT = 60  # 60 секунд без пінгу = світло зникло
 USERS_FILE = "users.json"
 
 # ====== ЗБЕРЕЖЕННЯ КОРИСТУВАЧІВ ======
