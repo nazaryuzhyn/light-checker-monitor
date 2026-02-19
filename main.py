@@ -3,6 +3,9 @@ import time
 import os
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+KYIV_TZ = ZoneInfo("Europe/Kyiv")
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -46,7 +49,7 @@ tg_app = None
 # ====== ДОПОМІЖНІ ФУНКЦІЇ ======
 def get_status_text():
     if state["power_is_on"]:
-        last = datetime.fromtimestamp(state["last_ping"]).strftime("%H:%M:%S")
+        last = datetime.fromtimestamp(state["last_ping"], tz=KYIV_TZ).strftime("%H:%M:%S")
         elapsed = int((time.time() - state["last_ping"]) / 60)
         return (
             f"✅ *Світло є*\n"
@@ -54,7 +57,7 @@ def get_status_text():
             f"({elapsed} хв тому)"
         )
     else:
-        off_time = datetime.fromtimestamp(state["power_off_time"]).strftime("%H:%M")
+        off_time = datetime.fromtimestamp(state["power_off_time"], tz=KYIV_TZ).strftime("%H:%M")
         duration = int((time.time() - state["power_off_time"]) / 60)
         hours = duration // 60
         minutes = duration % 60
@@ -121,7 +124,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "details":
-        last = datetime.fromtimestamp(state["last_ping"]).strftime("%d.%m %H:%M:%S")
+        last = datetime.fromtimestamp(state["last_ping"], tz=KYIV_TZ).strftime("%d.%m %H:%M:%S")
         status = "✅ Є" if state["power_is_on"] else "❌ Немає"
         text = (
             f"📊 *Детальна інформація*\n\n"
@@ -129,7 +132,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Останній пінг: {last}\n"
         )
         if not state["power_is_on"] and state["power_off_time"]:
-            off = datetime.fromtimestamp(state["power_off_time"]).strftime("%d.%m %H:%M")
+            off = datetime.fromtimestamp(state["power_off_time"], tz=KYIV_TZ).strftime("%d.%m %H:%M")
             duration = int((time.time() - state["power_off_time"]) / 60)
             text += f"\nВідключено: {off}\nТривалість: {duration} хв"
 
