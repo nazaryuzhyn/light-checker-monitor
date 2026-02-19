@@ -167,8 +167,9 @@ async def run_bot():
     tg_app.add_handler(CommandHandler("stop", cmd_stop))
     tg_app.add_handler(CallbackQueryHandler(button_handler))
     await tg_app.initialize()
+    await tg_app.bot.delete_webhook(drop_pending_updates=True)
     await tg_app.start()
-    await tg_app.updater.start_polling(drop_pending_updates=True)
+    await tg_app.updater.start_polling()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
