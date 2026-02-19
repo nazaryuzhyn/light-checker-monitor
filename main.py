@@ -13,9 +13,10 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # https://your-app.up.railway.app
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 PING_TIMEOUT = 60  # 60 секунд без пінгу = світло зникло
-USERS_FILE = "users.json"
+DATA_DIR = os.environ.get("DATA_DIR", ".")
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
 
 # ====== ЗБЕРЕЖЕННЯ КОРИСТУВАЧІВ ======
 def load_users():
