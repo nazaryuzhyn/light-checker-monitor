@@ -168,13 +168,17 @@ async def run_bot():
     tg_app.add_handler(CallbackQueryHandler(button_handler))
     await tg_app.initialize()
     await tg_app.start()
-    await tg_app.updater.start_polling()
+    await tg_app.updater.start_polling(drop_pending_updates=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(monitor_power())
     asyncio.create_task(run_bot())
     yield
+    if tg_app:
+        await tg_app.updater.stop()
+        await tg_app.stop()
+        await tg_app.shutdown()
 
 app = FastAPI(lifespan=lifespan)
 
