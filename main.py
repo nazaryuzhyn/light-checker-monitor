@@ -10,8 +10,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Bot, Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 load_dotenv()
 
@@ -21,6 +21,7 @@ PING_TIMEOUT = 60  # 60 секунд без пінгу = світло зникл
 DATA_DIR = os.environ.get("DATA_DIR", ".")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 
+
 # ====== ЗБЕРЕЖЕННЯ КОРИСТУВАЧІВ ======
 def load_users():
     try:
@@ -29,9 +30,11 @@ def load_users():
     except:
         return set()
 
+
 def save_users(users: set):
     with open(USERS_FILE, "w") as f:
         json.dump(list(users), f)
+
 
 subscribed_users = load_users()
 
@@ -45,6 +48,7 @@ state = {
 
 bot = None
 tg_app = None
+
 
 # ====== ДОПОМІЖНІ ФУНКЦІЇ ======
 def get_status_text():
@@ -68,11 +72,17 @@ def get_status_text():
             f"Вже {dur_text} без світла"
         )
 
+
+BTN_CHECK = "🔍 Перевірити стан"
+BTN_DETAILS = "📊 Детальніше"
+
+
 def get_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔍 Перевірити стан", callback_data="check")],
-        [InlineKeyboardButton("📊 Детальніше", callback_data="details")],
-    ])
+    return ReplyKeyboardMarkup(
+        [[BTN_CHECK, BTN_DETAILS]],
+        resize_keyboard=True,
+    )
+
 
 async def notify_all(text: str):
     """Надіслати повідомлення всім підписаним користувачам"""
@@ -81,7 +91,6 @@ async def notify_all(text: str):
             await bot.send_message(
                 chat_id=chat_id,
                 text=text,
-                reply_markup=get_keyboard(),
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -89,6 +98,7 @@ async def notify_all(text: str):
             print(f"Помилка надсилання до {chat_id}: {e}")
             subscribed_users.discard(chat_id)
             save_users(subscribed_users)
+
 
 # ====== ОБРОБНИКИ КОМАНД ======
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -106,24 +116,24 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     subscribed_users.discard(chat_id)
     save_users(subscribed_users)
     await update.message.reply_text("🔕 Ти відписаний від сповіщень.\nНапиши /start щоб підписатись знову.")
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
 
-    if query.data == "check":
-        await query.edit_message_text(
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message.text
+
+    if msg == BTN_CHECK:
+        await update.message.reply_text(
             text=get_status_text(),
-            reply_markup=get_keyboard(),
             parse_mode="Markdown"
         )
 
-    elif query.data == "details":
+    elif msg == BTN_DETAILS:
         last = datetime.fromtimestamp(state["last_ping"], tz=KYIV_TZ).strftime("%d.%m %H:%M:%S")
         status = "✅ Є" if state["power_is_on"] else "❌ Немає"
         text = (
@@ -136,11 +146,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             duration = int((time.time() - state["power_off_time"]) / 60)
             text += f"\nВідключено: {off}\nТривалість: {duration} хв"
 
-        await query.edit_message_text(
+        await update.message.reply_text(
             text=text,
-            reply_markup=get_keyboard(),
             parse_mode="Markdown"
         )
+
 
 # ====== МОНІТОРИНГ ======
 async def monitor_power():
@@ -152,7 +162,7 @@ async def monitor_power():
         if elapsed > PING_TIMEOUT and state["power_is_on"]:
             state["power_is_on"] = False
             state["power_off_time"] = time.time()
-            await notify_all("🔴 *Світло зникло!*\nESP перестав виходити на зв'язок. ☹️")
+            await notify_all("🔴 *Світло зникло!*\n\nESP перестав виходити на зв'язок. ☹️")
 
         elif elapsed <= PING_TIMEOUT and not state["power_is_on"]:
             state["power_is_on"] = True
@@ -161,7 +171,8 @@ async def monitor_power():
             hours = duration // 60
             minutes = duration % 60
             dur_text = f"{hours} год {minutes} хв" if hours > 0 else f"{minutes} хв"
-            await notify_all(f"💡 *Світло з'явилось!*\nНе було: {dur_text}")
+            await notify_all(f"💡 *Світло з'явилось!*\n\nНе було: {dur_text}")
+
 
 # ====== ІНІЦІАЛІЗАЦІЯ БОТА ======
 async def setup_bot():
@@ -170,10 +181,11 @@ async def setup_bot():
     bot = tg_app.bot
     tg_app.add_handler(CommandHandler("start", cmd_start))
     tg_app.add_handler(CommandHandler("stop", cmd_stop))
-    tg_app.add_handler(CallbackQueryHandler(button_handler))
+    tg_app.add_handler(MessageHandler(filters.TEXT & filters.Regex(f"^({BTN_CHECK}|{BTN_DETAILS})$"), button_handler))
     await tg_app.initialize()
     await tg_app.start()
     await bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -184,7 +196,9 @@ async def lifespan(app: FastAPI):
         await tg_app.stop()
         await tg_app.shutdown()
 
+
 app = FastAPI(lifespan=lifespan)
+
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -193,10 +207,12 @@ async def webhook(request: Request):
     await tg_app.process_update(update)
     return {"ok": True}
 
+
 @app.get("/ping")
 async def ping():
     state["last_ping"] = time.time()
     return {"status": "ok"}
+
 
 @app.get("/status")
 async def status():
