@@ -56,7 +56,7 @@ def get_status_text():
         last = datetime.fromtimestamp(state["last_ping"], tz=KYIV_TZ).strftime("%H:%M:%S")
         elapsed = int((time.time() - state["last_ping"]) / 60)
         return (
-            f"✅ *Світло є*\n"
+            f"✅ *Світло увімкнули.*\n\n"
             f"Останній сигнал: {last}\n"
             f"({elapsed} хв тому)"
         )
@@ -67,7 +67,7 @@ def get_status_text():
         minutes = duration % 60
         dur_text = f"{hours} год {minutes} хв" if hours > 0 else f"{minutes} хв"
         return (
-            f"❌ *Світла немає*\n"
+            f"❌ *Світла немає.*\n\n"
             f"Зникло о: {off_time}\n"
             f"Вже {dur_text} без світла"
         )
@@ -135,7 +135,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif msg == BTN_DETAILS:
         last = datetime.fromtimestamp(state["last_ping"], tz=KYIV_TZ).strftime("%d.%m %H:%M:%S")
-        status = "✅ Є" if state["power_is_on"] else "❌ Немає"
+        status = "✅ Електроенергія є" if state["power_is_on"] else "❌ Електроенергії немає"
         text = (
             f"📊 *Детальна інформація*\n\n"
             f"Стан: {status}\n"
