@@ -55,10 +55,11 @@ def get_status_text():
     if state["power_is_on"]:
         last = datetime.fromtimestamp(state["last_ping"], tz=KYIV_TZ).strftime("%H:%M:%S")
         elapsed = int((time.time() - state["last_ping"]) / 60)
+        ago_text = f"\n({elapsed} хв тому)" if elapsed > 0 else ""
         return (
-            f"✅ *Світло увімкнули.*\n\n"
-            f"Останній сигнал: {last}\n"
-            f"({elapsed} хв тому)"
+            f"✅ *Світло є.*\n\n"
+            f"Останній сигнал: {last}"
+            f"{ago_text}"
         )
     else:
         off_time = datetime.fromtimestamp(state["power_off_time"], tz=KYIV_TZ).strftime("%H:%M")
