@@ -1,0 +1,22 @@
+import logging
+
+from fastapi import APIRouter, Request
+
+from app.bot.setup import tg_app
+
+log = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.post("/webhook")
+async def webhook(request: Request):
+    try:
+        from telegram import Update
+
+        data = await request.json()
+        update = Update.de_json(data, tg_app.bot)
+        await tg_app.process_update(update)
+    except Exception:
+        log.exception("webhook error")
+    return {"ok": True}
