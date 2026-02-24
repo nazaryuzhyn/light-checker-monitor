@@ -23,6 +23,6 @@ async def setup_bot() -> Application:
 
     await tg_app.initialize()
     await tg_app.start()
-    await tg_app.bot.set_webhook(url=f"{settings.WEBHOOK_URL}/webhook")
+    await tg_app.updater.start_polling()
 
     return tg_app
