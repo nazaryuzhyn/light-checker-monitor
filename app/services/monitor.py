@@ -13,12 +13,18 @@ log = logging.getLogger(__name__)
 
 async def monitor_power(bot: Bot) -> None:
     await asyncio.sleep(15)
+    missed_checks = 0
+    required_misses = 3
     while True:
         await asyncio.sleep(5)
         try:
             elapsed = time.time() - power_state.last_ping
 
             if elapsed > settings.PING_TIMEOUT and power_state.power_is_on:
+                missed_checks += 1
+                if missed_checks < required_misses:
+                    continue
+                missed_checks = 0
                 power_state.power_is_on = False
                 power_state.power_off_time = time.time()
                 await power_state.save_to_db()
@@ -27,6 +33,7 @@ async def monitor_power(bot: Bot) -> None:
                 )
 
             elif elapsed <= settings.PING_TIMEOUT and not power_state.power_is_on:
+                missed_checks = 0
                 power_state.power_is_on = True
                 power_state.power_on_time = time.time()
                 duration = int((power_state.power_on_time - power_state.power_off_time) / 60)
