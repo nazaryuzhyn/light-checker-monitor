@@ -22,6 +22,7 @@ async def monitor_power(bot: Bot) -> None:
 
             if elapsed > settings.PING_TIMEOUT and power_state.power_is_on:
                 missed_checks += 1
+                log.warning("No ping for %.0fs (missed %d/%d)", elapsed, missed_checks, required_misses)
                 if missed_checks < required_misses:
                     continue
                 missed_checks = 0
@@ -33,6 +34,8 @@ async def monitor_power(bot: Bot) -> None:
                 )
 
             elif elapsed <= settings.PING_TIMEOUT and not power_state.power_is_on:
+                missed_checks = 0
+            else:
                 missed_checks = 0
                 power_state.power_is_on = True
                 power_state.power_on_time = time.time()
