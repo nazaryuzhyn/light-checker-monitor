@@ -35,8 +35,6 @@ async def monitor_power(bot: Bot) -> None:
 
             elif elapsed <= settings.PING_TIMEOUT and not power_state.power_is_on:
                 missed_checks = 0
-            else:
-                missed_checks = 0
                 power_state.power_is_on = True
                 power_state.power_on_time = time.time()
                 duration = int((power_state.power_on_time - power_state.power_off_time) / 60)
@@ -45,5 +43,7 @@ async def monitor_power(bot: Bot) -> None:
                 dur_text = f"{hours} год {minutes} хв" if hours > 0 else f"{minutes} хв"
                 await power_state.save_to_db()
                 await notify_all(bot, f"💡 *Світло з'явилось!*\n\nНе було: {dur_text}")
+            else:
+                missed_checks = 0
         except Exception:
             log.exception("monitor_power error")
