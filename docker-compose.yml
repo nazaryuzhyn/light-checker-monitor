@@ -9,7 +9,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lcm"]
+      test: [ "CMD-SHELL", "pg_isready -U lcm" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -48,5 +48,19 @@ services:
         max-size: "300m"
         max-file: "3"
 
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime-kuma:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "300m"
+        max-file: "3"
+
 volumes:
   pgdata:
+  uptime-kuma:
