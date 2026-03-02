@@ -13,6 +13,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "300m"
+        max-file: "3"
 
   app:
     build: .
@@ -28,6 +33,19 @@ services:
       driver: json-file
       options:
         max-size: "10m"
+        max-file: "3"
+
+  dozzle:
+    image: amir20/dozzle:latest
+    restart: unless-stopped
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "300m"
         max-file: "3"
 
 volumes:
