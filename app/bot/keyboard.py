@@ -11,11 +11,12 @@ KYIV_TZ = ZoneInfo("Europe/Kyiv")
 
 BTN_CHECK = "🔍 Перевірити стан"
 BTN_DETAILS = "📊 Детальніше"
+BTN_SCHEDULE = "📅 Графік"
 
 
 def get_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[BTN_CHECK, BTN_DETAILS]],
+        [[BTN_CHECK, BTN_DETAILS], [BTN_SCHEDULE]],
         resize_keyboard=True,
     )
 

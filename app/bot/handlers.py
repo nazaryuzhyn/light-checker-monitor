@@ -2,10 +2,11 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from app.bot.keyboard import BTN_CHECK, BTN_DETAILS, get_keyboard, get_status_text
+from app.bot.keyboard import BTN_CHECK, BTN_DETAILS, BTN_SCHEDULE, get_keyboard, get_status_text
+from app.services.schedule import fetch_schedule, format_schedule_text
 from app.database import async_session
 from app.services.subscriber import add_subscriber, remove_subscriber
 from app.state import power_state
@@ -73,3 +74,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             text += f"\nВідключено: {off}\nТривалість: {duration} хв"
 
         await update.message.reply_text(text=text, parse_mode="Markdown")
+
+    elif msg == BTN_SCHEDULE:
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("📅 На сьогодні", callback_data="schedule_today"),
+                InlineKeyboardButton("📅 На завтра", callback_data="schedule_tomorrow"),
+            ]
+        ])
+        await update.message.reply_text(
+            "Обери день:", reply_markup=keyboard
+        )
+
+
+async def schedule_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    day = "today" if query.data == "schedule_today" else "tomorrow"
+    data = await fetch_schedule()
+    if data:
+        text = format_schedule_text(data, day=day)
+    else:
+        text = "⚠️ Не вдалось отримати графік"
+    await query.edit_message_text(text=text, parse_mode="Markdown")

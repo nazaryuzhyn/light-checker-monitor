@@ -6,6 +6,7 @@ from telegram import Bot
 
 from app.bot.notifications import notify_all
 from app.config import settings
+from app.services.schedule import fetch_schedule, get_next_on_time
 from app.state import power_state
 
 log = logging.getLogger(__name__)
@@ -29,9 +30,13 @@ async def monitor_power(bot: Bot) -> None:
                 power_state.power_is_on = False
                 power_state.power_off_time = time.time()
                 await power_state.save_to_db()
-                await notify_all(
-                    bot, "🔴 *Світло зникло!*\n\nESP перестав виходити на зв'язок. ☹️"
-                )
+                msg = "🔴 *Світло зникло!*\n\nESP перестав виходити на зв'язок. ☹️"
+                data = await fetch_schedule()
+                if data:
+                    next_on = get_next_on_time(data)
+                    if next_on:
+                        msg += f"\n\n🕐 Планове увімкнення: {next_on}"
+                await notify_all(bot, msg)
 
             elif elapsed <= settings.PING_TIMEOUT and not power_state.power_is_on:
                 missed_checks = 0
