@@ -6,7 +6,7 @@ from telegram import Bot
 
 from app.bot.notifications import notify_all
 from app.config import settings
-from app.services.schedule import fetch_schedule, get_next_on_time
+from app.services.schedule import fetch_schedule, get_next_off_text, get_next_on_time
 from app.state import power_state
 
 log = logging.getLogger(__name__)
@@ -47,7 +47,11 @@ async def monitor_power(bot: Bot) -> None:
                 minutes = duration % 60
                 dur_text = f"{hours} год {minutes} хв" if hours > 0 else f"{minutes} хв"
                 await power_state.save_to_db()
-                await notify_all(bot, f"💡 *Світло з'явилось!*\n\nНе було: {dur_text}")
+                msg = f"💡 *Світло з'явилось!*\n\nНе було: {dur_text}"
+                data = await fetch_schedule()
+                if data:
+                    msg += f"\n\n{get_next_off_text(data)}"
+                await notify_all(bot, msg)
             else:
                 missed_checks = 0
         except Exception:

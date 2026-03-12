@@ -76,7 +76,7 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
 
 def get_next_on_time(data: dict) -> str | None:
     fact = data.get("fact", {})
-    today_key = _get_today_key(data)
+    today_key = _get_day_key(data)
     if not today_key:
         return None
 
@@ -99,3 +99,34 @@ def get_next_on_time(data: dict) -> str | None:
                 return f"~{on_time} ({group})"
 
     return None
+
+
+def get_next_off_text(data: dict) -> str:
+    fact = data.get("fact", {})
+    today_key = _get_day_key(data)
+    if not today_key:
+        return "🕐 Наступне відключення сьогодні: невідомо"
+
+    day_data = fact.get("data", {}).get(today_key, {})
+    if not day_data:
+        return "🕐 Наступне відключення сьогодні: невідомо"
+
+    now = datetime.now(KYIV_TZ)
+    current_hour = now.hour + 1  # schedule uses 1-24
+
+    parts = []
+    for group in settings.OUTAGE_GROUPS:
+        hours = day_data.get(group)
+        if not hours:
+            continue
+
+        for h in range(current_hour, 25):
+            status = hours.get(str(h), "yes")
+            if status in ("no", "mfirst", "msecond"):
+                parts.append(f"~{h - 1:02d}:00 ({group})")
+                break
+
+    if not parts:
+        return "🕐 Наступне відключення сьогодні: не планується"
+
+    return f"🕐 Наступне відключення сьогодні: {' або '.join(parts)}"
