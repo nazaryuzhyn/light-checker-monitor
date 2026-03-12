@@ -67,8 +67,9 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
         lines.append(f"\n*{group}:*")
         for h in range(1, 25):
             status = hours.get(str(h), "yes")
-            label = STATUS_LABELS.get(status, "❓")
-            lines.append(f"`{h - 1:02d}:00-{h:02d}:00` {label}")
+            icon = STATUS_LABELS.get(status, "❓")
+            end = "00:00" if h == 24 else f"{h:02d}:00"
+            lines.append(f"`{h - 1:02d}:00-{end}` {icon}")
 
     lines.append(f"\nОновлено: {fact.get('update', '?')}")
     return "\n".join(lines)
@@ -87,6 +88,8 @@ def get_next_on_time(data: dict) -> str | None:
     now = datetime.now(KYIV_TZ)
     current_hour = now.hour + 1  # schedule uses 1-24
 
+    earliest_h = None
+    earliest_group = None
     for group in settings.OUTAGE_GROUPS:
         hours = day_data.get(group)
         if not hours:
@@ -95,8 +98,14 @@ def get_next_on_time(data: dict) -> str | None:
         for h in range(current_hour, 25):
             status = hours.get(str(h), "yes")
             if status == "yes":
-                on_time = f"{h - 1:02d}:00"
-                return f"~{on_time} ({group})"
+                if earliest_h is None or h < earliest_h:
+                    earliest_h = h
+                    earliest_group = group
+                break
+
+    if earliest_h is not None:
+        on_time = f"{earliest_h - 1:02d}:00"
+        return f"~{on_time} ({earliest_group})"
 
     return None
 
