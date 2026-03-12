@@ -111,8 +111,7 @@ def get_next_on_time(data: dict) -> str | None:
         for h in range(current_hour, 25):
             status = hours.get(str(h), "yes")
             if status == "yes":
-                on_time = f"{h - 1:02d}:00"
-                return f"~{on_time} ({group})"
+                return f"{h - 2:02d}:30-{h - 1:02d}:00 ({group})"
 
     return None
 
@@ -139,7 +138,7 @@ def get_next_off_text(data: dict) -> str:
         for h in range(next_hour, 25):
             status = hours.get(str(h), "yes")
             if status in ("no", "mfirst", "msecond"):
-                parts.append(f"~{h - 1:02d}:00 ({group})")
+                parts.append(f"{h - 2:02d}:30-{h - 1:02d}:00 ({group})")
                 break
 
     if not parts:
