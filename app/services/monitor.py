@@ -32,10 +32,11 @@ async def monitor_power(bot: Bot) -> None:
                 await power_state.save_to_db()
                 msg = "🔴 *Світло зникло!*\n\nESP перестав виходити на зв'язок. ☹️"
                 data = await fetch_schedule()
-                if data:
-                    next_on = get_next_on_time(data)
-                    if next_on:
-                        msg += f"\n\n🕐 Планове увімкнення: {next_on}"
+                next_on = get_next_on_time(data) if data else None
+                if next_on:
+                    msg += f"\n\n🕐 Планове увімкнення: {next_on}"
+                else:
+                    msg += "\n\n🕐 Планове увімкнення: невідомо"
                 await notify_all(bot, msg)
 
             elif elapsed <= settings.PING_TIMEOUT and not power_state.power_is_on:

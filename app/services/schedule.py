@@ -128,7 +128,7 @@ def get_next_off_text(data: dict) -> str:
         return "🕐 Наступне відключення сьогодні: невідомо"
 
     now = datetime.now(KYIV_TZ)
-    current_hour = now.hour + 1  # schedule uses 1-24
+    next_hour = now.hour + 2  # schedule uses 1-24, skip current slot
 
     parts = []
     for group in settings.OUTAGE_GROUPS:
@@ -136,7 +136,7 @@ def get_next_off_text(data: dict) -> str:
         if not hours:
             continue
 
-        for h in range(current_hour, 25):
+        for h in range(next_hour, 25):
             status = hours.get(str(h), "yes")
             if status in ("no", "mfirst", "msecond"):
                 parts.append(f"~{h - 1:02d}:00 ({group})")
