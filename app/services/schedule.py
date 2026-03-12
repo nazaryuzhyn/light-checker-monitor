@@ -14,11 +14,11 @@ SCHEDULE_URL = (
     "/main/data/Ternopiloblenerho.json"
 )
 
-STATUS_ICONS = {
-    "yes": "✅",
-    "no": "❌",
-    "mfirst": "🟡",
-    "msecond": "🟠",
+STATUS_LABELS = {
+    "yes": "✅ є",
+    "no": "❌ немає",
+    "mfirst": "🟡 можливо",
+    "msecond": "🟠 можливо",
 }
 
 
@@ -65,18 +65,12 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
             continue
 
         lines.append(f"\n*{group}:*")
-        line = ""
         for h in range(1, 25):
             status = hours.get(str(h), "yes")
-            icon = STATUS_ICONS.get(status, "❓")
-            line += f"{icon}"
-            if h % 6 == 0:
-                start_h = h - 5
-                lines.append(f"`{start_h:02d}-{h:02d}` {line}")
-                line = ""
+            label = STATUS_LABELS.get(status, "❓")
+            lines.append(f"`{h - 1:02d}:00-{h:02d}:00` {label}")
 
     lines.append(f"\nОновлено: {fact.get('update', '?')}")
-    lines.append("\n✅ є | ❌ немає | 🟡🟠 можливо")
     return "\n".join(lines)
 
 
