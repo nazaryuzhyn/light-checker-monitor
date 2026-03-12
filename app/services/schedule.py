@@ -75,6 +75,18 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
     return "\n".join(lines)
 
 
+def _get_active_group(day_data: dict, current_hour: int) -> str | None:
+    """Determine which group is currently causing the outage."""
+    for group in settings.OUTAGE_GROUPS:
+        hours = day_data.get(group)
+        if not hours:
+            continue
+        status = hours.get(str(current_hour), "yes")
+        if status in ("no", "mfirst", "msecond"):
+            return group
+    return None
+
+
 def get_next_on_time(data: dict) -> str | None:
     fact = data.get("fact", {})
     today_key = _get_day_key(data)
@@ -88,9 +100,10 @@ def get_next_on_time(data: dict) -> str | None:
     now = datetime.now(KYIV_TZ)
     current_hour = now.hour + 1  # schedule uses 1-24
 
-    earliest_h = None
-    earliest_group = None
-    for group in settings.OUTAGE_GROUPS:
+    active_group = _get_active_group(day_data, current_hour)
+    search_groups = [active_group] if active_group else settings.OUTAGE_GROUPS
+
+    for group in search_groups:
         hours = day_data.get(group)
         if not hours:
             continue
@@ -98,14 +111,8 @@ def get_next_on_time(data: dict) -> str | None:
         for h in range(current_hour, 25):
             status = hours.get(str(h), "yes")
             if status == "yes":
-                if earliest_h is None or h < earliest_h:
-                    earliest_h = h
-                    earliest_group = group
-                break
-
-    if earliest_h is not None:
-        on_time = f"{earliest_h - 1:02d}:00"
-        return f"~{on_time} ({earliest_group})"
+                on_time = f"{h - 1:02d}:00"
+                return f"~{on_time} ({group})"
 
     return None
 
