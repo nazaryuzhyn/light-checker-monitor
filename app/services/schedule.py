@@ -15,10 +15,10 @@ SCHEDULE_URL = (
 )
 
 STATUS_LABELS = {
-    "yes": "✅ є",
-    "no": "❌ немає",
-    "mfirst": "🟡 можливо",
-    "msecond": "🟠 можливо",
+    "yes": "✅",
+    "no": "❌",
+    "mfirst": "🟡",
+    "msecond": "🟠",
 }
 
 
