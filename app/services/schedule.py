@@ -56,20 +56,35 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
 
     day_date = datetime.fromtimestamp(int(day_key), tz=KYIV_TZ)
     label = "сьогодні" if day == "today" else "завтра"
-    lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*\n"]
 
-    for group in settings.OUTAGE_GROUPS:
-        hours = day_data.get(group)
-        if not hours:
-            lines.append(f"\n*{group}*: дані відсутні")
-            continue
+    groups = settings.OUTAGE_GROUPS
+    group_data = {g: day_data.get(g) for g in groups}
 
-        lines.append(f"\n*{group}:*")
+    if len(groups) >= 2 and all(group_data.values()):
+        header = "         " + "  ".join(f"{g:>6}" for g in groups)
+        lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*\n"]
+        lines.append(f"`{header}`")
         for h in range(1, 25):
-            status = hours.get(str(h), "yes")
-            icon = STATUS_LABELS.get(status, "❓")
-            end = "00:00" if h == 24 else f"{h:02d}:00"
-            lines.append(f"`{h - 1:02d}:00-{end}` {icon}")
+            end = "00" if h == 24 else f"{h:02d}"
+            row = f"{h - 1:02d}-{end}    "
+            for g in groups:
+                status = group_data[g].get(str(h), "yes")
+                icon = STATUS_LABELS.get(status, "❓")
+                row += f" {icon}    "
+            lines.append(f"`{row.rstrip()}`")
+    else:
+        lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*\n"]
+        for g in groups:
+            hours = group_data.get(g)
+            if not hours:
+                lines.append(f"\n*{g}*: дані відсутні")
+                continue
+            lines.append(f"\n*{g}:*")
+            for h in range(1, 25):
+                status = hours.get(str(h), "yes")
+                icon = STATUS_LABELS.get(status, "❓")
+                end = "00:00" if h == 24 else f"{h:02d}:00"
+                lines.append(f"`{h - 1:02d}:00-{end}` {icon}")
 
     lines.append(f"\nОновлено: {fact.get('update', '?')}")
     return "\n".join(lines)
