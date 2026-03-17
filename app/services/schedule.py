@@ -38,9 +38,23 @@ def _get_day_key(data: dict, day: str = "today") -> str | None:
     today_key = fact.get("today")
     if not today_key:
         return None
-    if day == "tomorrow":
-        return str(int(today_key) + 86400)
-    return str(today_key)
+
+    # Verify the "today" key actually matches today's date
+    key_date = datetime.fromtimestamp(int(today_key), tz=KYIV_TZ).date()
+    actual_today = datetime.now(KYIV_TZ).date()
+
+    if day == "today":
+        if key_date != actual_today:
+            return None
+        return str(today_key)
+    else:
+        tomorrow_key = str(int(today_key) + 86400)
+        if key_date != actual_today:
+            return None
+        # Check if tomorrow's data exists
+        if tomorrow_key not in fact.get("data", {}):
+            return None
+        return tomorrow_key
 
 
 def format_schedule_text(data: dict, day: str = "today") -> str:
