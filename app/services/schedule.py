@@ -59,17 +59,17 @@ def _get_day_key(data: dict, day: str = "today") -> str | None:
 
 def format_schedule_text(data: dict, day: str = "today") -> str:
     fact = data.get("fact", {})
+    label = "сьогодні" if day == "today" else "завтра"
     day_key = _get_day_key(data, day)
     if not day_key:
-        return "⚠️ Графік недоступний"
+        update = fact.get("update", "?")
+        return f"⚠️ Графік на {label} ще не опубліковано\n\nОстаннє оновлення: {update}"
 
     day_data = fact.get("data", {}).get(day_key, {})
     if not day_data:
-        label = "сьогодні" if day == "today" else "завтра"
         return f"⚠️ Графік на {label} не знайдено"
 
     day_date = datetime.fromtimestamp(int(day_key), tz=KYIV_TZ)
-    label = "сьогодні" if day == "today" else "завтра"
 
     groups = settings.OUTAGE_GROUPS
     group_data = {g: day_data.get(g) for g in groups}
