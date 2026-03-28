@@ -100,7 +100,7 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
                 end = "00:00" if h == 24 else f"{h:02d}:00"
                 lines.append(f"`{h - 1:02d}:00-{end}` {icon}")
 
-    lines.append(f"\nОновлено: {fact.get('update', '?')}")
+    lines.append(f"\nГрафік оновлено: {fact.get('update', '?')}")
     return "\n".join(lines)
 
 
@@ -128,6 +128,7 @@ def get_next_on_time(data: dict) -> str | None:
 
     now = datetime.now(KYIV_TZ)
     current_hour = now.hour + 1  # schedule uses 1-24
+    next_hour = current_hour + 1  # skip current slot — power is already off now
 
     active_group = _get_active_group(day_data, current_hour)
     search_groups = [active_group] if active_group else settings.OUTAGE_GROUPS
@@ -137,7 +138,7 @@ def get_next_on_time(data: dict) -> str | None:
         if not hours:
             continue
 
-        for h in range(current_hour, 25):
+        for h in range(next_hour, 25):
             status = hours.get(str(h), "yes")
             if status != "no":
                 return f"{h - 1:02d}:00-{h - 1:02d}:30 ({group})"
@@ -167,7 +168,7 @@ def get_next_off_text(data: dict) -> str:
         for h in range(next_hour, 25):
             status = hours.get(str(h), "yes")
             if status == "no":
-                parts.append(f"{h - 1:02d}:00-{h - 1:02d}:30 ({group})")
+                parts.append(f"{h - 1:02d}:00-{h - 1:02d}:30")
                 break
 
     if not parts:
