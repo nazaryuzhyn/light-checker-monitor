@@ -87,7 +87,7 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
                 row += f" {icon}    "
             lines.append(f"`{row.rstrip()}`")
     else:
-        lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*"]
+        lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*\n"]
         for g in groups:
             hours = group_data.get(g)
             if not hours:
