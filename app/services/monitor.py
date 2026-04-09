@@ -30,7 +30,7 @@ async def monitor_power(bot: Bot) -> None:
                 power_state.power_is_on = False
                 power_state.power_off_time = time.time()
                 await power_state.save_to_db()
-                msg = "🔴 *Світло зникло!*\n\nESP перестав виходити на зв'язок. ☹️"
+                msg = "🔴 *Світло зникло!*"
                 data = await fetch_schedule()
                 next_on = get_next_on_time(data) if data else None
                 if next_on:

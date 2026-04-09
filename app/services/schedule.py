@@ -87,13 +87,12 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
                 row += f" {icon}    "
             lines.append(f"`{row.rstrip()}`")
     else:
-        lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*\n"]
+        lines = [f"📅 *Графік на {label} ({day_date.strftime('%d.%m.%Y')})*"]
         for g in groups:
             hours = group_data.get(g)
             if not hours:
                 lines.append(f"\n*{g}*: дані відсутні")
                 continue
-            lines.append(f"\n*{g}:*")
             for h in range(1, 25):
                 status = hours.get(str(h), "yes")
                 icon = STATUS_LABELS.get(status, "❓")
@@ -141,7 +140,7 @@ def get_next_on_time(data: dict) -> str | None:
         for h in range(next_hour, 25):
             status = hours.get(str(h), "yes")
             if status != "no":
-                return f"{h - 1:02d}:00-{h - 1:02d}:30 ({group})"
+                return f"{h - 1:02d}:00-{h - 1:02d}:30"
 
     return None
 
