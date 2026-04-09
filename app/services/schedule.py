@@ -127,20 +127,19 @@ def get_next_on_time(data: dict) -> str | None:
 
     now = datetime.now(KYIV_TZ)
     current_hour = now.hour + 1  # schedule uses 1-24
-    next_hour = current_hour + 1  # skip current slot — power is already off now
 
     active_group = _get_active_group(day_data, current_hour)
-    search_groups = [active_group] if active_group else settings.OUTAGE_GROUPS
+    if not active_group:
+        return None  # current slot is not a planned outage — restoration time unknown
 
-    for group in search_groups:
-        hours = day_data.get(group)
-        if not hours:
-            continue
+    hours = day_data.get(active_group)
+    if not hours:
+        return None
 
-        for h in range(next_hour, 25):
-            status = hours.get(str(h), "yes")
-            if status != "no":
-                return f"{h - 1:02d}:00-{h - 1:02d}:30"
+    for h in range(current_hour + 1, 25):
+        status = hours.get(str(h), "yes")
+        if status != "no":
+            return f"{h - 1:02d}:00-{h - 1:02d}:30"
 
     return None
 
