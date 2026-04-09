@@ -63,7 +63,7 @@ def format_schedule_text(data: dict, day: str = "today") -> str:
     day_key = _get_day_key(data, day)
     if not day_key:
         update = fact.get("update", "?")
-        return f"⚠️ Графік на {label} ще не опубліковано\n\nОстаннє оновлення: {update}"
+        return f"⚠️ Графік на {label} ще не опубліковано\n\nОстаннє оновлення графіку: {update}"
 
     day_data = fact.get("data", {}).get(day_key, {})
     if not day_data:
