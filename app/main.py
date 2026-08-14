@@ -1,43 +1,39 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
+from app.bot.setup import setup_bot, shutdown_bot
 from app.database import Base, engine
-from app.bot import setup as bot_setup
-from app.bot.setup import setup_bot
+from app.logging_config import configure_logging
 from app.routes import esp, status
 from app.services.monitor import monitor_power
 from app.state import power_state
 
+configure_logging()
+log = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Restore state from DB
     await power_state.load_from_db()
 
-    # Start Telegram bot
     application = await setup_bot()
+    monitor = asyncio.create_task(monitor_power(application.bot))
+    log.info("Started: bot polling and power monitor are running")
 
-    # Start background power monitor
-    asyncio.create_task(monitor_power(application.bot))
-
-    yield
-
-    # Graceful shutdown: save state, stop bot
-    await power_state.save_to_db()
-    if bot_setup.tg_app:
-        await bot_setup.tg_app.updater.stop()
-        await bot_setup.tg_app.stop()
-        await bot_setup.tg_app.shutdown()
+    try:
+        yield
+    finally:
+        monitor.cancel()
+        with suppress(asyncio.CancelledError):
+            await monitor
+        await power_state.save_to_db()
+        await shutdown_bot()
 
 
 app = FastAPI(lifespan=lifespan)

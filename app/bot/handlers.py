@@ -1,100 +1,117 @@
-import time
-from datetime import datetime
-from zoneinfo import ZoneInfo
+"""Telegram handlers. Each one resolves state, then delegates copy to texts."""
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+import logging
+from collections.abc import Awaitable, Callable
+from io import BytesIO
+
+from telegram import InputMediaPhoto, Message, Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
-from app.bot.keyboard import BTN_CHECK, BTN_DETAILS, BTN_SCHEDULE, get_keyboard, get_status_text
-from app.services.schedule import fetch_schedule, format_schedule_text
+from app.bot import texts
+from app.bot.keyboard import (
+    BTN_CHECK,
+    BTN_DETAILS,
+    BTN_SCHEDULE,
+    DAY_BY_CALLBACK,
+    day_switch_keyboard,
+    main_keyboard,
+)
 from app.database import async_session
+from app.services.schedule import DaySchedule, render_day_png
+from app.services.schedule.source import Day, fetch_raw, parse_day
 from app.services.subscriber import add_subscriber, remove_subscriber
 from app.state import power_state
 
-KYIV_TZ = ZoneInfo("Europe/Kyiv")
+log = logging.getLogger(__name__)
+
+
+async def _resolve(day: Day) -> tuple[DaySchedule | None, str | None]:
+    """Return the day's schedule, or the reason there is nothing to show."""
+    raw = await fetch_raw()
+    if raw is None:
+        return None, texts.schedule_unavailable()
+
+    schedule = parse_day(raw, day)
+    if schedule is None:
+        return None, texts.schedule_missing(day)
+    return schedule, None
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id
-
     async with async_session() as session:
-        is_new = await add_subscriber(session, chat_id)
-
-    greeting = (
-        "👋 Вітаю! Ти підписаний на сповіщення про світло."
-        if is_new
-        else "👋 Ти вже підписаний!"
-    )
+        is_new = await add_subscriber(session, update.effective_chat.id)
 
     await update.message.reply_text(
-        f"{greeting}\n\n🏠 *Моніторинг світла*",
-        reply_markup=get_keyboard(),
-        parse_mode="Markdown",
+        texts.greeting(is_new), reply_markup=main_keyboard(), parse_mode="Markdown"
     )
 
 
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id
-
     async with async_session() as session:
-        await remove_subscriber(session, chat_id)
+        await remove_subscriber(session, update.effective_chat.id)
 
-    await update.message.reply_text(
-        "🔕 Ти відписаний від сповіщень.\n\nНапиши `/start` щоб підписатись знову."
+    await update.message.reply_text(texts.farewell())
+
+
+async def _reply_status(message: Message) -> None:
+    await message.reply_text(texts.power_status(power_state), parse_mode="Markdown")
+
+
+async def _reply_details(message: Message) -> None:
+    await message.reply_text(texts.power_details(power_state), parse_mode="Markdown")
+
+
+async def _reply_schedule(message: Message) -> None:
+    day: Day = "today"
+    schedule, problem = await _resolve(day)
+    if schedule is None:
+        await message.reply_text(problem, parse_mode="Markdown")
+        return
+
+    await message.reply_photo(
+        photo=BytesIO(render_day_png(schedule)),
+        caption=texts.schedule_caption(schedule),
+        parse_mode="Markdown",
+        reply_markup=day_switch_keyboard(day),
     )
 
 
+BUTTONS: dict[str, Callable[[Message], Awaitable[None]]] = {
+    BTN_CHECK: _reply_status,
+    BTN_DETAILS: _reply_details,
+    BTN_SCHEDULE: _reply_schedule,
+}
+
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    msg = update.message.text
-
-    if msg == BTN_CHECK:
-        await update.message.reply_text(
-            text=get_status_text(), parse_mode="Markdown"
-        )
-
-    elif msg == BTN_DETAILS:
-        last = datetime.fromtimestamp(power_state.last_ping, tz=KYIV_TZ).strftime(
-            "%d.%m %H:%M:%S"
-        )
-        status = (
-            "✅ Електроенергія є"
-            if power_state.power_is_on
-            else "❌ Електроенергії немає"
-        )
-        text = (
-            f"📊 *Детальна інформація*\n\n"
-            f"Стан: {status}\n"
-            f"Останній пінг: {last}\n"
-        )
-        if not power_state.power_is_on and power_state.power_off_time:
-            off = datetime.fromtimestamp(
-                power_state.power_off_time, tz=KYIV_TZ
-            ).strftime("%d.%m %H:%M")
-            duration = int((time.time() - power_state.power_off_time) / 60)
-            text += f"\nВідключено: {off}\nТривалість: {duration} хв"
-
-        await update.message.reply_text(text=text, parse_mode="Markdown")
-
-    elif msg == BTN_SCHEDULE:
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("📅 На сьогодні", callback_data="schedule_today"),
-                InlineKeyboardButton("📅 На завтра", callback_data="schedule_tomorrow"),
-            ]
-        ])
-        await update.message.reply_text(
-            "Обери день:", reply_markup=keyboard
-        )
+    action = BUTTONS.get(update.message.text)
+    if action:
+        await action(update.message)
 
 
 async def schedule_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    day = DAY_BY_CALLBACK.get(query.data)
+    if day is None:
+        await query.answer()
+        return
 
-    day = "today" if query.data == "schedule_today" else "tomorrow"
-    data = await fetch_schedule()
-    if data:
-        text = format_schedule_text(data, day=day)
-    else:
-        text = "⚠️ Не вдалось отримати графік"
-    await query.edit_message_text(text=text, parse_mode="Markdown")
+    schedule, _ = await _resolve(day)
+    if schedule is None:
+        await query.answer(texts.schedule_missing_short(day), show_alert=True)
+        return
+
+    await query.answer()
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(
+                media=BytesIO(render_day_png(schedule)),
+                caption=texts.schedule_caption(schedule),
+                parse_mode="Markdown",
+            ),
+            reply_markup=day_switch_keyboard(day),
+        )
+    except BadRequest as error:
+        # "Message is not modified" is the common, harmless case here.
+        log.debug("Could not update the schedule photo: %s", error)
