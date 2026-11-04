@@ -21,7 +21,8 @@ REQUIRED_MISSES = 3  # a single slow ping is not an outage
 
 async def _announce_outage(bot: Bot) -> None:
     power_state.power_is_on = False
-    power_state.power_off_time = time.time()
+    # The alert fires a minute or so after the ESP fell silent; the outage began then.
+    power_state.power_off_time = power_state.last_ping
     await power_state.save_to_db()
     await notify_all(bot, texts.power_lost(await get_day("today")))
 
