@@ -24,7 +24,8 @@ async def _on_error(update: object, context) -> None:
 async def setup_bot() -> Application:
     global tg_app
 
-    tg_app = Application.builder().token(settings.BOT_TOKEN).build()
+    # Concurrent, so one slow photo upload does not hold up everyone else's taps.
+    tg_app = Application.builder().token(settings.BOT_TOKEN).concurrent_updates(True).build()
 
     tg_app.add_handler(CommandHandler("start", cmd_start))
     tg_app.add_handler(CommandHandler("stop", cmd_stop))

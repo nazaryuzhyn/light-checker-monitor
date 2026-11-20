@@ -18,8 +18,9 @@ from app.services.schedule.models import (
 
 log = logging.getLogger(__name__)
 
-REQUEST_TIMEOUT = 10
+REQUEST_TIMEOUT = 5
 CACHE_TTL = 300  # the feed is refreshed a few times a day; polling it harder is waste
+RETRY_AFTER_FAILURE = 60  # a feed that is down would otherwise cost every request the timeout
 
 Day = Literal["today", "tomorrow"]
 SECONDS_PER_DAY = 86400
@@ -39,16 +40,18 @@ _HOURLY_MAP: dict[str, tuple[PowerLevel | None, PowerLevel | None]] = {
 
 _cached: dict | None = None
 _cached_at: float = 0.0
+_failed_at: float = float("-inf")
 _lock = asyncio.Lock()
 
 
 async def fetch_raw(*, force: bool = False) -> dict | None:
     """Return the raw feed, reusing a recent response when possible."""
-    global _cached, _cached_at
+    global _cached, _cached_at, _failed_at
 
     async with _lock:
-        fresh = _cached is not None and time.monotonic() - _cached_at < CACHE_TTL
-        if fresh and not force:
+        now = time.monotonic()
+        fresh = _cached is not None and now - _cached_at < CACHE_TTL
+        if not force and (fresh or now - _failed_at < RETRY_AFTER_FAILURE):
             return _cached
 
         try:
@@ -58,6 +61,7 @@ async def fetch_raw(*, force: bool = False) -> dict | None:
                 _cached = response.json()
                 _cached_at = time.monotonic()
         except Exception:
+            _failed_at = time.monotonic()
             log.exception("Failed to fetch outage schedule")
             return _cached  # stale beats nothing
 
@@ -139,8 +143,8 @@ async def get_day(day: Day = "today", *, force: bool = False) -> DaySchedule | N
 
 def reset_cache() -> None:
     """Drop the cached feed — used by tests."""
-    global _cached, _cached_at
-    _cached, _cached_at = None, 0.0
+    global _cached, _cached_at, _failed_at
+    _cached, _cached_at, _failed_at = None, 0.0, float("-inf")
 
 
 __all__ = [

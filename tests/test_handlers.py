@@ -1,9 +1,12 @@
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
 from conftest import midnight_today_ts
 
 from app.bot import handlers
+from app.core.timeutil import now_kyiv
 from app.services.schedule.source import SECONDS_PER_DAY
 
 HOURS_ALL_ON = {str(h): "yes" for h in range(1, 25)}
@@ -11,6 +14,32 @@ HOURS_ALL_ON = {str(h): "yes" for h in range(1, 25)}
 
 def feed_with(data: dict) -> dict:
     return {"fact": {"today": str(midnight_today_ts()), "update": "20.11.2026 10:36", "data": data}}
+
+
+@pytest.fixture(autouse=True)
+def _forget_photos():
+    handlers._file_ids.clear()
+    yield
+    handlers._file_ids.clear()
+
+
+def test_the_same_picture_is_sent_again_without_uploading(monkeypatch):
+    raw = feed_with({str(midnight_today_ts()): {"GPV5.2": dict(HOURS_ALL_ON)}})
+    monkeypatch.setattr(handlers, "fetch_raw", AsyncMock(return_value=raw))
+    moment = now_kyiv().replace(hour=10, minute=47)
+    monkeypatch.setattr(handlers, "now_kyiv", lambda: moment)
+    renders = []
+    monkeypatch.setattr(handlers, "render_day_png", lambda schedule, now: renders.append(now) or b"png")
+    message = AsyncMock()
+    message.reply_photo.return_value = SimpleNamespace(photo=(SimpleNamespace(file_id="F1"),))
+
+    asyncio.run(handlers._reply_schedule(message))
+    asyncio.run(handlers._reply_schedule(message))
+
+    assert renders == [moment]
+    assert message.reply_photo.await_args_list[0].kwargs["photo"] == b"png"
+    assert message.reply_photo.await_args_list[1].kwargs["photo"] == "F1"
+    assert message.reply_photo.await_args.kwargs["read_timeout"] == handlers.PHOTO_TIMEOUT
 
 
 def test_schedule_button_opens_tomorrow_when_today_is_missing(monkeypatch):
