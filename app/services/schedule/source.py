@@ -24,12 +24,17 @@ CACHE_TTL = 300  # the feed is refreshed a few times a day; polling it harder is
 Day = Literal["today", "tomorrow"]
 SECONDS_PER_DAY = 86400
 
-# One hourly status from the feed expands into two half-hour slots.
-_HOURLY_MAP: dict[str, tuple[PowerLevel, PowerLevel]] = {
+# One hourly status from the feed expands into two half-hour slots. The half-hour
+# codes name one half only; None marks the other one, which the oblenergo's own
+# schedule shows continuing the neighbouring hour.
+_HOURLY_MAP: dict[str, tuple[PowerLevel | None, PowerLevel | None]] = {
     "yes": (PowerLevel.ON, PowerLevel.ON),
     "no": (PowerLevel.OFF, PowerLevel.OFF),
-    "mfirst": (PowerLevel.MAYBE, PowerLevel.ON),
-    "msecond": (PowerLevel.ON, PowerLevel.MAYBE),
+    "maybe": (PowerLevel.MAYBE, PowerLevel.MAYBE),
+    "first": (PowerLevel.OFF, None),
+    "second": (None, PowerLevel.OFF),
+    "mfirst": (PowerLevel.MAYBE, None),
+    "msecond": (None, PowerLevel.MAYBE),
 }
 
 _cached: dict | None = None
@@ -86,13 +91,19 @@ def _day_key(raw: dict, day: Day) -> str | None:
     return tomorrow_key if tomorrow_key in (fact.get("data") or {}) else None
 
 
+def _half(level: PowerLevel | None, neighbour: str | None) -> PowerLevel:
+    if level is not None:
+        return level
+    return PowerLevel.OFF if neighbour == "no" else PowerLevel.ON
+
+
 def _expand_hours(hours: dict) -> tuple[PowerLevel, ...]:
     levels: list[PowerLevel] = []
     for hour in range(1, 25):
         status = hours.get(str(hour), "yes")
         first, second = _HOURLY_MAP.get(status, (PowerLevel.ON, PowerLevel.ON))
-        levels.append(first)
-        levels.append(second)
+        levels.append(_half(first, hours.get(str(hour - 1))))
+        levels.append(_half(second, hours.get(str(hour + 1))))
     return tuple(levels)
 
 

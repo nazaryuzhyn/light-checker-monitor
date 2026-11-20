@@ -1,8 +1,8 @@
 """Domain model for a single day of the outage schedule.
 
-The upstream feed publishes 24 hourly statuses per group. Two of those statuses
-("maybe in the first / second half") only make sense at half-hour resolution, so
-the whole day is normalised to 48 half-hour slots. Everything downstream — text,
+The upstream feed publishes 24 hourly statuses per group. Some of those statuses
+describe only one half of the hour, so the whole day is normalised to 48 half-hour
+slots. Everything downstream — text,
 notifications, the rendered image — reads this model and never the raw JSON.
 """
 
