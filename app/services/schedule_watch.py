@@ -9,6 +9,7 @@ from telegram import Bot
 from app.bot import texts
 from app.bot.notifications import notify_all
 from app.core.timeutil import KYIV_TZ, now_kyiv
+from app.models import Notice
 from app.services.schedule import DaySchedule
 from app.services.schedule.models import MINUTES_PER_SLOT, Outage, PowerLevel
 from app.services.schedule.source import fetch_raw, parse_day
@@ -73,8 +74,8 @@ async def watch_schedule(bot: Bot) -> None:
             if seen is None:
                 seen = {s.day: s.levels for s in schedules}  # first look after a start
             else:
-                for notice in schedule_notices(seen, schedules):
-                    await notify_all(bot, notice)
+                for message in schedule_notices(seen, schedules):
+                    await notify_all(bot, message, Notice.SCHEDULE_CHANGES)
 
             now = now_kyiv()
             due = due_reminders(schedules, checked_at, now)
@@ -82,7 +83,7 @@ async def watch_schedule(bot: Bot) -> None:
             # Already dark: "an outage is coming" would only confuse.
             if power_state.power_is_on:
                 for outage in due:
-                    await notify_all(bot, texts.outage_reminder(outage))
+                    await notify_all(bot, texts.outage_reminder(outage), Notice.REMINDERS)
 
             seen = {day: levels for day, levels in seen.items() if day >= now.date()}
         except Exception:

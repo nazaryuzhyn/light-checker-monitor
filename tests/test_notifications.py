@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 from telegram.error import BadRequest, Forbidden, RetryAfter, TimedOut
 
 from app.bot import notifications
+from app.models import Notice
 
 
 def test_only_chats_that_are_gone_are_unsubscribed(monkeypatch):
@@ -44,7 +45,7 @@ def test_flood_control_waits_and_retries(monkeypatch):
 
 
 def test_an_alert_still_goes_out_while_the_database_is_down(monkeypatch):
-    monkeypatch.setattr(notifications, "_last_known_subscribers", [7])
+    monkeypatch.setattr(notifications, "_last_known_recipients", {None: [7]})
 
     def broken_session():
         raise OSError("db down")
@@ -64,3 +65,15 @@ def test_a_network_blip_is_retried(monkeypatch):
 
     assert asyncio.run(notifications._send(bot, 1, "text")) is True
     assert bot.send_message.await_count == 2
+
+
+def test_an_optional_notice_skips_chats_that_switched_it_off(monkeypatch):
+    lookup = AsyncMock(return_value=[5])
+    monkeypatch.setattr(notifications, "async_session", contextlib.nullcontext)
+    monkeypatch.setattr(notifications, "get_all_subscribers", lookup)
+    bot = AsyncMock()
+
+    asyncio.run(notifications.notify_all(bot, "⏰ Скоро відключення", Notice.REMINDERS))
+
+    assert lookup.await_args.args[1] is Notice.REMINDERS
+    assert bot.send_message.await_args.kwargs["chat_id"] == 5

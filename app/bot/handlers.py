@@ -19,15 +19,19 @@ from app.bot.keyboard import (
     BTN_CHECK,
     BTN_DETAILS,
     BTN_SCHEDULE,
+    BTN_SETTINGS,
     DAY_BY_CALLBACK,
+    NOTICE_BY_CALLBACK,
+    NOTICE_LABELS,
     day_switch_keyboard,
     main_keyboard,
+    settings_keyboard,
 )
 from app.core.timeutil import now_kyiv
 from app.database import async_session
 from app.services.schedule import DaySchedule, render_day_png
 from app.services.schedule.source import Day, fetch_raw, parse_day
-from app.services.subscriber import add_subscriber, remove_subscriber
+from app.services.subscriber import add_subscriber, get_muted, remove_subscriber, toggle_notice
 from app.state import power_state
 
 log = logging.getLogger(__name__)
@@ -126,10 +130,19 @@ async def _reply_schedule(message: Message) -> None:
     _remember(key, sent)
 
 
+async def _reply_settings(message: Message) -> None:
+    async with async_session() as session:
+        muted = await get_muted(session, message.chat_id)
+    await message.reply_text(
+        texts.settings_intro(), parse_mode="Markdown", reply_markup=settings_keyboard(muted)
+    )
+
+
 BUTTONS: dict[str, Callable[[Message], Awaitable[None]]] = {
     BTN_CHECK: _reply_status,
     BTN_DETAILS: _reply_details,
     BTN_SCHEDULE: _reply_schedule,
+    BTN_SETTINGS: _reply_settings,
 }
 
 
@@ -170,3 +183,27 @@ async def schedule_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         log.log(level, "Could not update the schedule photo: %s", error)
         return
     _remember(key, sent)
+
+
+async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _reply_settings(update.message)
+
+
+async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    notice = NOTICE_BY_CALLBACK.get(query.data)
+    if notice is None:
+        await query.answer()
+        return
+
+    chat_id = update.effective_chat.id
+    async with async_session() as session:
+        now_on = await toggle_notice(session, chat_id, notice)
+        muted = await get_muted(session, chat_id)
+
+    await query.answer(texts.notice_toggled(NOTICE_LABELS[notice], now_on))
+    try:
+        await query.edit_message_reply_markup(reply_markup=settings_keyboard(muted))
+    except BadRequest as error:
+        # Two quick taps can leave the markup already up to date.
+        log.debug("Could not update the settings keyboard: %s", error)

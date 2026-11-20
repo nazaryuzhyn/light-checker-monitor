@@ -5,6 +5,7 @@ from telegram import Bot
 from telegram.error import BadRequest, Forbidden, NetworkError, RetryAfter, TelegramError
 
 from app.database import async_session
+from app.models import Notice
 from app.services.subscriber import get_all_subscribers, remove_subscribers
 
 log = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ ATTEMPTS = 3
 NETWORK_BACKOFF = (2, 5)  # seconds before the second and the third attempt
 
 # Kept so an alert still goes out while the database is unreachable.
-_last_known_subscribers: list[int] = []
+_last_known_recipients: dict[Notice | None, list[int]] = {}
 
 
 async def _send(bot: Bot, chat_id: int, text: str) -> bool:
@@ -44,15 +45,18 @@ async def _send(bot: Bot, chat_id: int, text: str) -> bool:
     return True
 
 
-async def notify_all(bot: Bot, text: str) -> None:
-    """Send a message to all subscribers, removing those who blocked the bot."""
-    global _last_known_subscribers
+async def notify_all(bot: Bot, text: str, notice: Notice | None = None) -> None:
+    """Send a message to subscribers, removing those who blocked the bot.
+
+    `notice` marks an optional broadcast that skips chats which switched it off;
+    without it the message goes to everyone.
+    """
     try:
         async with async_session() as session:
-            _last_known_subscribers = await get_all_subscribers(session)
+            _last_known_recipients[notice] = await get_all_subscribers(session, notice)
     except Exception:
         log.exception("Could not read subscribers; using the last known list")
-    chat_ids = _last_known_subscribers
+    chat_ids = _last_known_recipients.get(notice, [])
 
     gone = [chat_id for chat_id in chat_ids if not await _send(bot, chat_id, text)]
     if gone:

@@ -8,8 +8,16 @@ from telegram.ext import (
     filters,
 )
 
-from app.bot.handlers import BUTTONS, button_handler, cmd_start, cmd_stop, schedule_callback
-from app.bot.keyboard import CALLBACK_PREFIX
+from app.bot.handlers import (
+    BUTTONS,
+    button_handler,
+    cmd_settings,
+    cmd_start,
+    cmd_stop,
+    schedule_callback,
+    settings_callback,
+)
+from app.bot.keyboard import CALLBACK_PREFIX, SETTINGS_PREFIX
 from app.config import settings
 
 log = logging.getLogger(__name__)
@@ -37,11 +45,15 @@ async def setup_bot() -> Application:
     new_messages = filters.UpdateType.MESSAGE
     tg_app.add_handler(CommandHandler("start", cmd_start, filters=new_messages))
     tg_app.add_handler(CommandHandler("stop", cmd_stop, filters=new_messages))
+    tg_app.add_handler(CommandHandler("settings", cmd_settings, filters=new_messages))
     tg_app.add_handler(
         MessageHandler(filters.Text(list(BUTTONS)) & new_messages, button_handler)
     )
     tg_app.add_handler(
         CallbackQueryHandler(schedule_callback, pattern=f"^{CALLBACK_PREFIX}")
+    )
+    tg_app.add_handler(
+        CallbackQueryHandler(settings_callback, pattern=f"^{SETTINGS_PREFIX}")
     )
     tg_app.add_error_handler(_on_error)
 

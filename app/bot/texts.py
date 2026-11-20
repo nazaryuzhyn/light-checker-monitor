@@ -26,7 +26,10 @@ def greeting(is_new: bool) -> str:
         if is_new
         else "👋 Ти вже підписаний."
     )
-    return f"{lead}\n\nНапишу, щойно світло зникне або зʼявиться."
+    return (
+        f"{lead}\n\nНапишу, щойно світло зникне або зʼявиться. "
+        "Сповіщення про графік і нагадування можна вимкнути в ⚙️ Налаштуваннях."
+    )
 
 
 def farewell() -> str:
@@ -201,3 +204,18 @@ def schedule_changed(schedule: DaySchedule) -> str:
 def outage_reminder(outage: Outage) -> str:
     title = "Скоро відключення" if outage.is_certain else "Скоро можливе відключення"
     return f"⏰ *{title}*\n\nЗа графіком {_outage_line(outage)}"
+
+
+# ── settings ──────────────────────────────────────────────────────────────
+
+
+def settings_intro() -> str:
+    return (
+        "⚙️ *Налаштування сповіщень*\n\n"
+        "Про те, що світло зникло чи зʼявилось, я пишу завжди. "
+        "Додаткові сповіщення можна вимкнути — натисни, щоб перемкнути."
+    )
+
+
+def notice_toggled(label: str, now_on: bool) -> str:
+    return f"{label}: {'увімкнено' if now_on else 'вимкнено'}"
