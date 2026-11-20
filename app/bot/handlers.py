@@ -146,9 +146,9 @@ async def schedule_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.answer()
         return
 
-    schedule, _ = await _resolve(day)
+    schedule, problem = await _resolve(day)
     if schedule is None:
-        await query.answer(texts.schedule_missing_short(day), show_alert=True)
+        await query.answer(problem, show_alert=True)
         return
 
     await query.answer()
@@ -166,6 +166,7 @@ async def schedule_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
     except BadRequest as error:
         # "Message is not modified" is the common, harmless case here.
-        log.debug("Could not update the schedule photo: %s", error)
+        level = logging.DEBUG if "not modified" in error.message.lower() else logging.WARNING
+        log.log(level, "Could not update the schedule photo: %s", error)
         return
     _remember(key, sent)

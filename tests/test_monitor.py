@@ -24,3 +24,18 @@ def test_outage_is_counted_from_the_last_ping(monkeypatch):
 
     assert state.power_off_time == 1_000.0
     assert "Не було 1 хв" in notify.await_args.args[1]
+
+
+def test_the_alert_goes_out_even_when_saving_the_state_fails(monkeypatch):
+    state = monitor.power_state
+    monkeypatch.setattr(state, "power_is_on", True)
+    monkeypatch.setattr(state, "last_ping", 1_000.0)
+    monkeypatch.setattr(state, "power_off_time", None)
+    monkeypatch.setattr(state, "save_to_db", AsyncMock(side_effect=OSError("db down")))
+    notify = AsyncMock()
+    monkeypatch.setattr(monitor, "notify_all", notify)
+    monkeypatch.setattr(monitor, "get_day", AsyncMock(return_value=None))
+
+    asyncio.run(monitor._announce_outage(AsyncMock()))
+
+    assert "Світло зникло" in notify.await_args.args[1]

@@ -8,7 +8,7 @@ os.environ.setdefault("OUTAGE_GROUPS", '["GPV5.2"]')
 
 import pytest  # noqa: E402
 
-from app.core.timeutil import KYIV_TZ  # noqa: E402
+from app.core.timeutil import KYIV_TZ, now_kyiv  # noqa: E402
 from app.services.schedule.models import DaySchedule, PowerLevel  # noqa: E402
 
 ON, OFF, MAYBE = PowerLevel.ON, PowerLevel.OFF, PowerLevel.MAYBE
@@ -38,7 +38,8 @@ def at(hour: int, minute: int = 0) -> datetime:
 
 
 def midnight_today_ts() -> int:
-    return int(datetime.combine(date.today(), time(0, 0), tzinfo=KYIV_TZ).timestamp())
+    # Kyiv's date, like the code under test; the machine's own date differs at night.
+    return int(datetime.combine(now_kyiv().date(), time(0, 0), tzinfo=KYIV_TZ).timestamp())
 
 
 @pytest.fixture(autouse=True)

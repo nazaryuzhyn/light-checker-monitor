@@ -1,7 +1,12 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Subscriber
+
+
+async def count_subscribers(session: AsyncSession) -> int:
+    return await session.scalar(select(func.count()).select_from(Subscriber))
 
 
 async def get_all_subscribers(session: AsyncSession) -> list[int]:
@@ -11,15 +16,15 @@ async def get_all_subscribers(session: AsyncSession) -> list[int]:
 
 async def add_subscriber(session: AsyncSession, chat_id: int) -> bool:
     """Add subscriber. Returns True if new, False if already existed."""
-    existing = await session.execute(
-        select(Subscriber).where(Subscriber.chat_id == chat_id)
+    # One statement, so two quick /start taps handled concurrently cannot collide.
+    result = await session.execute(
+        insert(Subscriber)
+        .values(chat_id=chat_id)
+        .on_conflict_do_nothing()
+        .returning(Subscriber.chat_id)
     )
-    if existing.scalar_one_or_none() is not None:
-        return False
-
-    session.add(Subscriber(chat_id=chat_id))
     await session.commit()
-    return True
+    return result.scalar_one_or_none() is not None
 
 
 async def remove_subscriber(session: AsyncSession, chat_id: int) -> None:

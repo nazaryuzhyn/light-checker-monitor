@@ -60,3 +60,30 @@ def test_unknown_reset_reason_is_kept_as_code(client, caplog):
 
 def test_ping_requires_key(client):
     assert client.get("/ping").status_code == 401
+
+
+def test_the_key_is_accepted_in_a_header(client):
+    assert client.get("/ping", headers={"X-API-Key": "test-key"}).status_code == 200
+
+
+def test_a_wrong_key_is_rejected(client):
+    assert client.get("/ping", params={"api_key": "wrong"}).status_code == 401
+
+
+def test_a_failed_save_still_answers_ok(client, monkeypatch):
+    """The ESP reboots after 3 min without a 200; a database hiccup must not cause that."""
+    monkeypatch.setattr(esp.power_state, "record_ping_and_save", AsyncMock(side_effect=OSError("db down")))
+    assert client.get("/ping", params={"api_key": "test-key"}).status_code == 200
+
+
+def test_the_key_is_masked_in_access_lines():
+    from app.logging_config import _HideApiKey
+
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+        ("5.58.91.9:1", "GET", "/ping?api_key=secret&boots=0", "1.1", 200), None,
+    )
+    _HideApiKey().filter(record)
+
+    assert "secret" not in record.getMessage()
+    assert "/ping?api_key=***&boots=0" in record.getMessage()

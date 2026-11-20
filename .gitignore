@@ -6,3 +6,6 @@ __pycache__/
 
 # Rendered by scripts/preview_schedule.py — regenerate instead of committing
 preview/
+
+# The working sketch holds the Wi-Fi password and the ESP key
+firmware/

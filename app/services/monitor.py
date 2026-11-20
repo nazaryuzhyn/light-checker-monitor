@@ -19,20 +19,32 @@ POLL_INTERVAL = 5
 REQUIRED_MISSES = 3  # a single slow ping is not an outage
 
 
+async def _save_state() -> None:
+    # The state has already flipped in memory, so a failed write must not cost the alert.
+    try:
+        await power_state.save_to_db()
+    except Exception:
+        log.exception("Could not save the power state")
+
+
 async def _announce_outage(bot: Bot) -> None:
     power_state.power_is_on = False
     # The alert fires a minute or so after the ESP fell silent; the outage began then.
     power_state.power_off_time = power_state.last_ping
-    await power_state.save_to_db()
-    await notify_all(bot, texts.power_lost(await get_day("today")))
+    try:
+        await notify_all(bot, texts.power_lost(await get_day("today")))
+    finally:
+        await _save_state()  # after the alert, so a slow database cannot delay it
 
 
 async def _announce_restore(bot: Bot) -> None:
     power_state.power_is_on = True
     power_state.power_on_time = time.time()
     minutes = int((power_state.power_on_time - (power_state.power_off_time or 0)) / 60)
-    await power_state.save_to_db()
-    await notify_all(bot, texts.power_restored(await get_day("today"), minutes))
+    try:
+        await notify_all(bot, texts.power_restored(await get_day("today"), minutes))
+    finally:
+        await _save_state()
 
 
 async def _check(bot: Bot, misses: int) -> int:

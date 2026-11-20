@@ -32,8 +32,11 @@ async def ping(
     rssi: int | None = None,
     up: int | None = None,
 ):
-    await power_state.record_ping_and_save()
-    log.info("Ping received")
+    try:
+        await power_state.record_ping_and_save()
+    except Exception as error:
+        # The ping is already counted in memory; a 500 would only make the ESP reboot.
+        log.warning("Could not save the ping: %s", error)
     if boots or wifi_down or http_fail:
         log.warning(
             "ESP back after silence: boots=%d wifi_down=%d http_fail=%d "

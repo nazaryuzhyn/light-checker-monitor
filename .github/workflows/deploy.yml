@@ -19,16 +19,28 @@ jobs:
 
   deploy:
     needs: test
+    # One deploy at a time: two pushes in a row must not pull and rebuild concurrently.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2  # v1.2.5
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd /home/light-checker-monitor
-            git pull
+            git pull --ff-only
             docker compose up --build -d
+            # "up -d" returns once the container exists; wait until the app answers.
+            for attempt in $(seq 1 20); do
+              curl -fsS -o /dev/null localhost:8000/status && exit 0
+              sleep 3
+            done
+            echo "The app did not come up" >&2
+            exit 1

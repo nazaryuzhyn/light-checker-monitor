@@ -109,6 +109,15 @@ def _expand_hours(hours: dict) -> tuple[PowerLevel, ...]:
 
 def parse_day(raw: dict, day: Day = "today") -> DaySchedule | None:
     """Build a DaySchedule, or None when this day is not published for our group."""
+    try:
+        return _parse_day(raw, day)
+    except (AttributeError, KeyError, TypeError, ValueError, OverflowError, OSError):
+        # A third-party feed; a changed shape must not take the power alerts down with it.
+        log.exception("Unexpected outage feed shape")
+        return None
+
+
+def _parse_day(raw: dict, day: Day) -> DaySchedule | None:
     group = primary_group()
     if not group:
         log.warning("OUTAGE_GROUPS is empty — cannot resolve a schedule")

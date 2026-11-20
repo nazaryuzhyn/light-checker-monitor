@@ -86,3 +86,8 @@ def test_tomorrow_only_when_the_feed_actually_publishes_it():
 def test_group_label_drops_the_feed_prefix():
     assert group_label("GPV5.2") == "5.2"
     assert group_label("5.2") == "5.2"
+
+
+def test_a_feed_of_an_unexpected_shape_yields_nothing():
+    assert parse_day({"fact": {"data": {"not-a-timestamp": {}}}}, "today") is None
+    assert parse_day({"fact": {"data": []}}, "today") is None

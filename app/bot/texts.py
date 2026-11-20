@@ -5,11 +5,12 @@ press and a push notification, and it can be read without digging through
 handler plumbing.
 """
 
+import re
 from datetime import datetime
 
 from app.core.timeutil import format_clock, format_duration, now_kyiv, to_kyiv
 from app.services.schedule import DaySchedule, build_headline, group_label
-from app.services.schedule.models import SLOTS_PER_DAY, slot_label, slot_of
+from app.services.schedule.models import SLOTS_PER_DAY, Outage, slot_label, slot_of
 from app.services.schedule.source import Day
 from app.state import PowerStateManager
 
@@ -72,6 +73,11 @@ def power_details(state: PowerStateManager, *, now: datetime | None = None) -> s
 # ── schedule ──────────────────────────────────────────────────────────────
 
 
+def _plain(feed_text: str) -> str:
+    # Legacy Markdown cannot escape inside _italics_; a stray mark would fail the send.
+    return re.sub(r"[_*`\[]", "", feed_text)
+
+
 def schedule_caption(schedule: DaySchedule, *, now: datetime | None = None) -> str:
     headline = build_headline(schedule, now or now_kyiv())
     label = "Сьогодні" if schedule.is_today else "Завтра"
@@ -79,7 +85,7 @@ def schedule_caption(schedule: DaySchedule, *, now: datetime | None = None) -> s
         f"*{headline.plain}*\n"
         f"{headline.detail}\n\n"
         f"_{label} · група {group_label(schedule.group)} · "
-        f"оновлено {schedule.updated_label}_"
+        f"оновлено {_plain(schedule.updated_label)}_"
     )
 
 
@@ -92,10 +98,6 @@ def schedule_missing(day: Day) -> str:
     return "📅 Графік на сьогодні ще не опубліковано."
 
 
-def schedule_missing_short(day: Day) -> str:
-    return f"Графік на {DAY_NAMES[day]} ще не опубліковано"
-
-
 def schedule_unavailable() -> str:
     return "⚠️ Не вдалось отримати графік. Спробуй ще раз за хвилину."
 
@@ -103,18 +105,29 @@ def schedule_unavailable() -> str:
 # ── notifications ─────────────────────────────────────────────────────────
 
 
+def _expected_end(outage: Outage, slot: int) -> tuple[int, bool]:
+    """When the light should return, and whether that is only a possibility."""
+    _, last = outage.anchor
+    if slot >= last:  # past the certain core, in the half hour that may still be off
+        return outage.end, True
+    return last, False
+
+
 def _restoration_hint(schedule: DaySchedule | None, now: datetime) -> str:
     if schedule is None:
         return "Графік зараз недоступний"
 
-    outage = schedule.outage_at(slot_of(now))
+    slot = slot_of(now)
+    outage = schedule.outage_at(slot)
     if outage is None:
         return "За графіком відключення на цей час не планували"
 
-    _, last = outage.anchor
-    if last >= SLOTS_PER_DAY:
+    end, possibly = _expected_end(outage, slot)
+    if end >= SLOTS_PER_DAY:
         return "За графіком світла не буде до кінця доби"
-    return f"За графіком увімкнуть о {slot_label(last)}"
+    if possibly:
+        return f"За графіком світло може зʼявитися до {slot_label(end)}"
+    return f"За графіком увімкнуть о {slot_label(end)}"
 
 
 def _next_outage_hint(schedule: DaySchedule | None, now: datetime) -> str:
@@ -124,10 +137,12 @@ def _next_outage_hint(schedule: DaySchedule | None, now: datetime) -> str:
     slot = slot_of(now)
     ongoing = schedule.outage_at(slot)
     if ongoing:
-        _, last = ongoing.anchor
-        if last < SLOTS_PER_DAY:
-            return f"За графіком відключення триває до {slot_label(last)}"
-        return "За графіком світла не буде до кінця доби"
+        end, possibly = _expected_end(ongoing, slot)
+        if end >= SLOTS_PER_DAY:
+            return "За графіком світла не буде до кінця доби"
+        if possibly:
+            return f"За графіком можливе відключення до {slot_label(end)}"
+        return f"За графіком відключення триває до {slot_label(end)}"
 
     upcoming = schedule.next_outage(slot)
     if upcoming is None:
@@ -152,3 +167,37 @@ def power_restored(
     if hint:
         lines += ["", hint]
     return "\n".join(lines)
+
+
+# ── schedule watch ────────────────────────────────────────────────────────
+
+
+def _outage_line(outage: Outage) -> str:
+    if not outage.is_certain:
+        return f"{outage.range_label} · можливе"
+    if outage.fuzzy_label:
+        return f"{outage.range_label} · {outage.fuzzy_label}"
+    return outage.range_label
+
+
+def _outage_list(schedule: DaySchedule) -> str:
+    if not schedule.has_outages:
+        return "Відключень не заплановано"
+    return "\n".join(f"• {_outage_line(outage)}" for outage in schedule.outages)
+
+
+def _day_name(schedule: DaySchedule) -> str:
+    return DAY_NAMES["today" if schedule.is_today else "tomorrow"]
+
+
+def schedule_published(schedule: DaySchedule) -> str:
+    return f"📅 *Зʼявився графік на {_day_name(schedule)}*\n\n{_outage_list(schedule)}"
+
+
+def schedule_changed(schedule: DaySchedule) -> str:
+    return f"🔄 *Графік на {_day_name(schedule)} змінився*\n\n{_outage_list(schedule)}"
+
+
+def outage_reminder(outage: Outage) -> str:
+    title = "Скоро відключення" if outage.is_certain else "Скоро можливе відключення"
+    return f"⏰ *{title}*\n\nЗа графіком {_outage_line(outage)}"
