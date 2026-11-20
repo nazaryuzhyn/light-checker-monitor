@@ -25,13 +25,9 @@ class PowerStateManager:
         self.power_is_on = row.power_is_on
         self.power_off_time = row.power_off_at.timestamp() if row.power_off_at else None
         self.power_on_time = row.power_on_at.timestamp() if row.power_on_at else None
-
-        if row.power_is_on:
-            # Power was ON — give ESP 60s to reconnect
-            self.last_ping = time.time()
-        else:
-            # Power was OFF — keep the old last_ping so monitor stays in "off" state
-            self.last_ping = row.last_ping_at.timestamp()
+        # Every ping is saved, so an outage that begins around a restart keeps its
+        # real start; a live ESP pings again well within the monitor's startup grace.
+        self.last_ping = row.last_ping_at.timestamp()
 
     async def save_to_db(self) -> None:
         """Persist current in-memory state to DB."""
