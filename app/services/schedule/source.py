@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
 import httpx
@@ -74,21 +74,17 @@ def group_label(group: str) -> str:
 
 
 def _day_key(raw: dict, day: Day) -> str | None:
-    """Feed key (a unix timestamp) for the requested day, if it is published."""
-    fact = raw.get("fact") or {}
-    today_key = fact.get("today")
-    if not today_key:
-        return None
+    """Feed key (a unix timestamp) for the requested day, if it is published.
 
-    key_date = datetime.fromtimestamp(int(today_key), tz=KYIV_TZ).date()
-    if key_date != now_kyiv().date():
-        return None  # feed is stale — do not pass yesterday off as today
-
-    if day == "today":
-        return str(today_key)
-
-    tomorrow_key = str(int(today_key) + SECONDS_PER_DAY)
-    return tomorrow_key if tomorrow_key in (fact.get("data") or {}) else None
+    Looked up by the real date: the feed's own `today` sometimes still points at
+    yesterday after its data already holds today.
+    """
+    wanted = now_kyiv().date() + timedelta(days=1 if day == "tomorrow" else 0)
+    data = (raw.get("fact") or {}).get("data") or {}
+    for key in data:
+        if datetime.fromtimestamp(int(key), tz=KYIV_TZ).date() == wanted:
+            return key
+    return None
 
 
 def _half(level: PowerLevel | None, neighbour: str | None) -> PowerLevel:

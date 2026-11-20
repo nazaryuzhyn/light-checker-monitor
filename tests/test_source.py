@@ -48,6 +48,26 @@ def test_a_stale_feed_is_refused_rather_than_shown_as_today():
     assert parse_day(feed(today_ts=midnight_today_ts() - SECONDS_PER_DAY), "today") is None
 
 
+def test_today_is_found_even_when_the_feed_still_calls_yesterday_today():
+    yesterday = midnight_today_ts() - SECONDS_PER_DAY
+    today_key = str(midnight_today_ts())
+    raw = feed(today_ts=yesterday, extra={today_key: {"GPV5.2": dict(HOURS_ALL_ON)}})
+
+    day = parse_day(raw, "today")
+
+    assert day is not None
+    assert day.is_today
+
+
+def test_tomorrow_is_found_when_today_is_missing():
+    tomorrow_key = str(midnight_today_ts() + SECONDS_PER_DAY)
+    raw = feed(extra={tomorrow_key: {"GPV5.2": dict(HOURS_ALL_ON)}})
+    del raw["fact"]["data"][str(midnight_today_ts())]
+
+    assert parse_day(raw, "today") is None
+    assert parse_day(raw, "tomorrow") is not None
+
+
 def test_missing_group_yields_nothing():
     assert parse_day(feed(groups={"GPV1.1": dict(HOURS_ALL_ON)}), "today") is None
 

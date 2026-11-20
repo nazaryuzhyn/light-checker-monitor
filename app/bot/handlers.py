@@ -63,12 +63,15 @@ async def _reply_details(message: Message) -> None:
 
 
 async def _reply_schedule(message: Message) -> None:
-    day: Day = "today"
-    schedule, problem = await _resolve(day)
+    schedule, problem = await _resolve("today")
+    if schedule is None:
+        # Today may be unpublished while tomorrow already is.
+        schedule, _ = await _resolve("tomorrow")
     if schedule is None:
         await message.reply_text(problem, parse_mode="Markdown")
         return
 
+    day: Day = "today" if schedule.is_today else "tomorrow"
     await message.reply_photo(
         photo=BytesIO(render_day_png(schedule)),
         caption=texts.schedule_caption(schedule),
